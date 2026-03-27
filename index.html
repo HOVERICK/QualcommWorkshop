@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>퀄컴 워크숍 참여자 조회</title>
+    <style>
+        :root {
+            --primary-color: #00427a;
+            --secondary-color: #005eb8;
+            --background-color: #f4f7f6;
+            --text-color: #333;
+            --card-bg: #fff;
+            --border-radius: 12px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        header h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        #server-hint {
+            font-size: 0.85rem;
+            color: #d9534f;
+            margin-top: 15px;
+            padding: 10px;
+            background: #fdf7f7;
+            border: 1px solid #ebccd1;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .search-container {
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 20px;
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid var(--primary-color);
+            border-radius: 30px;
+            font-size: 1.1rem;
+            outline: none;
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s;
+        }
+
+        #searchInput:focus {
+            border-color: var(--secondary-color);
+        }
+
+        .results-container {
+            width: 100%;
+            max-width: 600px;
+            display: grid;
+            gap: 15px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            border-left: 6px solid var(--primary-color);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .card h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card .name-en {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .card .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+
+        .card .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            header h1 { font-size: 1.5rem; }
+            #searchInput { padding: 12px 18px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>퀄컴 워크숍 참여자 조회</h1>
+        <p>참가자 정보를 이름 또는 팀명으로 검색하세요.</p>
+        <div id="server-hint">
+            ⚠️ <b>보안 안내:</b> 브라우저 정책상 파일을 직접 열면 데이터를 불러올 수 없습니다.<br>
+            터미널에서 <code>python -m http.server 8000</code> 실행 후 <br>
+            <a href="http://localhost:8000" target="_blank">http://localhost:8000</a>으로 접속해 주세요.
+        </div>
+    </header>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="이름(한글/영문) 또는 팀명 검색..." autocomplete="off">
+    </div>
+
+    <div id="loading" class="loading">데이터를 불러오는 중...</div>
+    <div id="results" class="results-container"></div>
+
+    <script>
+        let workshopData = [];
+        const searchInput = document.getElementById('searchInput');
+        const resultsContainer = document.getElementById('results');
+        const loadingElement = document.getElementById('loading');
+        const serverHint = document.getElementById('server-hint');
+
+        // Check protocol
+        if (window.location.protocol === 'file:') {
+            serverHint.style.display = 'block';
+        }
+
+        // Load data
+        fetch('workshop_data.json')
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                workshopData = data;
+                loadingElement.style.display = 'none';
+                renderInitialMessage();
+            })
+            .catch(error => {
+                console.error('Error loading data:', error);
+                loadingElement.innerHTML = '<span style="color:red">데이터를 불러오는데 실패했습니다.</span>';
+                if (window.location.protocol === 'file:') {
+                    loadingElement.innerHTML += '<br><small>로컬 서버(http://...)가 필요합니다.</small>';
+                }
+            });
+
+        function renderInitialMessage() {
+            resultsContainer.innerHTML = '<div class="no-results">검색어를 입력해 주세요.</div>';
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            
+            if (query.length === 0) {
+                renderInitialMessage();
+                return;
+            }
+
+            const filtered = workshopData.filter(item => {
+                return (
+                    (item['국문 이름'] && item['국문 이름'].toLowerCase().includes(query)) ||
+                    (item['영문이름'] && item['영문이름'].toLowerCase().includes(query)) ||
+                    (item['팀명'] && item['팀명'].toLowerCase().includes(query))
+                );
+            });
+
+            renderResults(filtered);
+        });
+
+        function renderResults(data) {
+            resultsContainer.innerHTML = '';
+            
+            if (data.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                
+                card.innerHTML = `
+                    <h3>
+                        ${item['국문 이름'] || '이름 없음'}
+                        <span class="name-en">${item['영문이름'] || ''}</span>
+                    </h3>
+                    <div class="info-row">
+                        <span class="info-label">대그룹:</span>
+                        <span>${item['대그룹'] || '-'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">소그룹:</span>
+                        <span>${item['소그룹'] || '-'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">팀명:</span>
+                        <span>${item['팀명'] || '-'}</span>
+                    </div>
+                `;
+                resultsContainer.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
